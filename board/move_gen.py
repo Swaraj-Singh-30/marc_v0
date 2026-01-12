@@ -1,4 +1,3 @@
-# --- MASKS ---
 RANK_3 = 0x0000000000FF0000
 RANK_4 = 0x00000000FF000000
 RANK_6 = 0x0000FF0000000000
@@ -40,7 +39,7 @@ def get_black_pawn_moves(board):
     
     return quiet_pushes | double_pushes, promotions
 
-# Capture lofic for pawns 
+# Capture logic for pawns 
 def get_white_pawn_captures(board):
     pawns = board.white_pawns
     black_pieces = board.get_all_black()
@@ -100,3 +99,62 @@ def get_black_knight_moves(board):
 
     # Filter out your own pieces
     return moves & ~own_pieces
+
+#sliding moves logic 
+def get_sliding_moves(square_index, occupied, own_pieces, direction_offset):
+    moves = 0
+    current_square = square_index
+    
+    while True:
+        prev_file = current_square % 8
+        current_square += direction_offset
+        
+        if not (0 <= current_square <= 63): 
+            break
+        
+        curr_file = current_square % 8
+        if abs(direction_offset) % 8 != 0: # If move has a horizontal component
+            if abs(curr_file - prev_file) != 1:
+                break
+        
+        mask = 1 << current_square
+
+        if mask & own_pieces:
+            break
+
+        moves |= mask
+        
+        if mask & occupied:
+            break
+            
+    return moves
+#rook moves
+def get_white_rook_moves(board):
+    all_rook_moves = 0
+    rooks = board.white_rooks
+    occupied = board.get_occupied()
+    own_pieces = board.get_all_white()
+    
+    for i in range(64):
+        if (rooks >> i) & 1:
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, 8)
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, -8)
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, 1)
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, -1)
+            
+    return all_rook_moves
+
+def get_black_rook_moves(board):
+    all_rook_moves = 0
+    rooks = board.black_rooks
+    occupied = board.get_occupied()
+    own_pieces = board.get_all_black()  
+    
+    for i in range(64):
+        if (rooks >> i) & 1:
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, 8)
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, -8)
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, 1)
+            all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, -1)
+            
+    return all_rook_moves

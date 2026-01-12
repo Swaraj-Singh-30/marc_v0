@@ -11,7 +11,9 @@ def main():
         "White Pawn Moves": move_gen.get_white_pawn_moves(board),
         "Black Pawn Moves": move_gen.get_black_pawn_moves(board),
         "White Knight Moves": move_gen.get_white_knight_moves(board),
-        "Black Knight Moves": move_gen.get_black_knight_moves(board)
+        "Black Knight Moves": move_gen.get_black_knight_moves(board),
+        "White Rook Moves": move_gen.get_white_rook_moves(board),
+        "Black Rook Moves": move_gen.get_black_rook_moves(board)
     }
 
     for label, result in test_cases.items():
