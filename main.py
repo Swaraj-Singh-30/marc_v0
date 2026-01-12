@@ -1,14 +1,21 @@
-# main.py
-from board.board import Board  # This links the two files!
+from board.board import Board
+from board.move_gen import get_white_pawn_moves
+from board.move_gen import get_black_pawn_moves
 
 def main():
-    # Create an instance of the board
-    my_chess_board = Board()
+    my_board = Board()
     
-    # Test it
-    print("Welcome to your Chess Engine!")
-    occ = my_chess_board.get_occupied()
-    print(f"Current occupied squares (Bitboard): {bin(occ)}")
+    # Calculate where pawns CAN go
+    targets = get_white_pawn_moves(my_board)
+    
+    print("Initial Board:")
+    my_board.display()
+    
+    print("Possible White Pawn Destinations (Bitboard):")
+    my_board.display_bitboard(targets) # This helper we wrote earlier!
+
+    targets02 = get_black_pawn_moves(my_board)
+    my_board.display_bitboard(targets02)
 
 if __name__ == "__main__":
     main()
