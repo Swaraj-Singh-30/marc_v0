@@ -1,21 +1,30 @@
 from board.board import Board
-from board.move_gen import get_white_pawn_moves
-from board.move_gen import get_black_pawn_moves
+import board.move_gen as move_gen
 
 def main():
-    my_board = Board()
+    board = Board()
     
-    # Calculate where pawns CAN go
-    targets = get_white_pawn_moves(my_board)
+    print("--- Chess Engine Debug View ---")
+    board.display()
     
-    print("Initial Board:")
-    my_board.display()
-    
-    print("Possible White Pawn Destinations (Bitboard):")
-    my_board.display_bitboard(targets) # This helper we wrote earlier!
+    test_cases = {
+        "White Pawn Moves": move_gen.get_white_pawn_moves(board),
+        "Black Pawn Moves": move_gen.get_black_pawn_moves(board),
+        "White Knight Moves": move_gen.get_white_knight_moves(board),
+        "Black Knight Moves": move_gen.get_black_knight_moves(board)
+    }
 
-    targets02 = get_black_pawn_moves(my_board)
-    my_board.display_bitboard(targets02)
+    for label, result in test_cases.items():
+        print(f"\n{label}:")
+        
+        if isinstance(result, tuple):
+            normal, promo = result
+            print("--- Normal Moves ---")
+            board.display_bitboard(normal)
+            print("--- Promotion Moves ---")
+            board.display_bitboard(promo)
+        else:
+            board.display_bitboard(result)
 
 if __name__ == "__main__":
     main()

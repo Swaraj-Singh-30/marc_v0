@@ -63,3 +63,13 @@ class Board:
                     line += " . "
             print(line)
         print("  ---------------")
+        
+    def get_all_white(self):
+        """Returns a bitboard of all white pieces"""
+        return (self.white_pawns | self.white_knights | self.white_bishops | 
+                self.white_rooks | self.white_queens | self.white_king)
+
+    def get_all_black(self):
+        """Returns a bitboard of all black pieces"""
+        return (self.black_pawns | self.black_knights | self.black_bishops | 
+                self.black_rooks | self.black_queens | self.black_king)
