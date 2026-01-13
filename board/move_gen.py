@@ -158,3 +158,38 @@ def get_black_rook_moves(board):
             all_rook_moves |= get_sliding_moves(i, occupied, own_pieces, -1)
             
     return all_rook_moves
+
+#Bishop moves
+
+def get_white_bishop_moves(board):
+    all_bishop_moves = 0
+    #It is bishops and not bishop!!
+    bishops = board.white_bishops 
+    occupied = board.get_occupied()
+    own_pieces = board.get_all_white() 
+
+    for i in range(64):
+        if (bishops >> i) & 1:
+            # Diagonals: NE(+9), NW(+7), SE(-7), SW(-9)
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, 9)
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, 7)
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, -7)
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, -9)
+        
+    return all_bishop_moves
+
+def get_black_bishop_moves(board):
+    all_bishop_moves = 0
+    bishops = board.black_bishops
+    occupied = board.get_occupied()
+    own_pieces = board.get_all_black() 
+
+    for i in range(64):
+        if (bishops >> i) & 1:
+            # Diagonals are the same for both colors
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, 9)
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, 7)
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, -7)
+            all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, -9)
+            
+    return all_bishop_moves
