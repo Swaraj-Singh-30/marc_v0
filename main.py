@@ -15,7 +15,11 @@ def main():
         "White Rook Moves": move_gen.get_white_rook_moves(board),
         "Black Rook Moves": move_gen.get_black_rook_moves(board),
         "White Bishop Moves": move_gen.get_white_bishop_moves(board),
-        "Black Bishop Moves": move_gen.get_black_bishop_moves(board)
+        "Black Bishop Moves": move_gen.get_black_bishop_moves(board),
+        "White Queen Moves": move_gen.get_white_queen_moves(board),
+        "Black Queen Moves": move_gen.get_black_queen_moves(board),
+        "White King Moves": move_gen.get_white_king_moves(board),
+        "Black King Moves": move_gen.get_black_king_moves(board),
     }
 
     for label, result in test_cases.items():

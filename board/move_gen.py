@@ -193,3 +193,78 @@ def get_black_bishop_moves(board):
             all_bishop_moves |= get_sliding_moves(i, occupied, own_pieces, -9)
             
     return all_bishop_moves
+
+#Queen moves 
+def get_white_queen_moves(board):
+    all_queen_moves = 0
+    queens = board.white_queens
+    occupied = board.get_occupied()
+    own_pieces = board.get_all_white()
+    
+    for i in range(64):
+        if (queens >> i) & 1:
+            # Queens move like rooks
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 8)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -8)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 1)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -1)
+            # Queens also move like bishops
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 9)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 7)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -7)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -9)
+    
+    return all_queen_moves
+
+def get_black_queen_moves(board):
+    all_queen_moves = 0
+    queens = board.black_queens
+    occupied = board.get_occupied()
+    own_pieces = board.get_all_black()
+    
+    for i in range(64):
+        if (queens >> i) & 1:
+            # Queens move like rooks
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 8)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -8)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 1)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -1)
+            # Queens also move like bishops
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 9)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, 7)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -7)
+            all_queen_moves |= get_sliding_moves(i, occupied, own_pieces, -9)
+    
+    return all_queen_moves
+
+
+
+#King moves
+def get_white_king_moves(board):
+    king = board.white_king
+    own_pieces = board.get_all_white()
+    
+    moves = (king << 8)                   # North
+    moves |= (king >> 8)                  # South
+    moves |= (king << 1) & ~FILE_A        # East
+    moves |= (king >> 1) & ~FILE_H        # West
+    moves |= (king << 9) & ~FILE_A        # North-East
+    moves |= (king << 7) & ~FILE_H        # North-West
+    moves |= (king >> 7) & ~FILE_A        # South-East
+    moves |= (king >> 9) & ~FILE_H        # South-West
+    
+    return moves & ~own_pieces
+
+def get_black_king_moves(board):
+    king = board.black_king
+    own_pieces = board.get_all_black()
+    
+    moves = (king << 8) | (king >> 8)
+    moves |= (king << 1) & ~FILE_A
+    moves |= (king >> 1) & ~FILE_H
+    moves |= (king << 9) & ~FILE_A
+    moves |= (king << 7) & ~FILE_H
+    moves |= (king >> 7) & ~FILE_A
+    moves |= (king >> 9) & ~FILE_H
+    
+    return moves & ~own_pieces

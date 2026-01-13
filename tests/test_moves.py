@@ -64,6 +64,16 @@ def get_moves_for_piece(board, piece_type, is_white=True):
             moves = move_gen.get_white_bishop_moves(board)
         else:
             moves = move_gen.get_black_bishop_moves(board)
+    elif piece_type == 'queen':
+        if is_white:
+            moves = move_gen.get_white_queen_moves(board)
+        else:
+            moves = move_gen.get_black_queen_moves(board)
+    elif piece_type == 'king':
+        if is_white:
+            moves = move_gen.get_white_king_moves(board)
+        else:
+            moves = move_gen.get_black_king_moves(board)
     else:
         moves = 0
     
@@ -148,22 +158,28 @@ def main():
     test_piece_at_position('knight', center, is_white=True)
     test_piece_at_position('bishop', center, is_white=True)
     test_piece_at_position('rook', center, is_white=True)
+    test_piece_at_position('queen', center, is_white=True)
+    test_piece_at_position('king', center, is_white=True)
     
     # Test black pieces at center
     print("\n TESTING BLACK PIECES AT d4 (CENTER):")
     test_piece_at_position('pawn', center, is_white=False)
     test_piece_at_position('knight', center, is_white=False)
     test_piece_at_position('bishop', center, is_white=False)
+    test_piece_at_position('queen', center, is_white=False)
+    test_piece_at_position('king', center, is_white=False)
     
     # Test edge positions
     print("\n TESTING EDGE POSITIONS:")
     corner = square_index_from_notation('a1')
     test_piece_at_position('knight', corner, is_white=True)
     test_piece_at_position('bishop', corner, is_white=True)
+    test_piece_at_position('king', corner, is_white=True)
     
     edge = square_index_from_notation('h4')
     test_piece_at_position('rook', edge, is_white=True)
     test_piece_at_position('bishop', edge, is_white=True)
+    test_piece_at_position('queen', edge, is_white=True)
 
 if __name__ == "__main__":
     main()
