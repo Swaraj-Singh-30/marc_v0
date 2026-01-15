@@ -73,3 +73,12 @@ class Board:
         """Returns a bitboard of all black pieces"""
         return (self.black_pawns | self.black_knights | self.black_bishops | 
                 self.black_rooks | self.black_queens | self.black_king)
+    
+    # Turn tracking
+        self.white_to_move = True
+        
+        # Castling Rights: [White King-side, White Queen-side, Black King-side, Black Queen-side]
+        self.castling_rights = [True, True, True, True]
+        
+        # En Passant: Index of the square where a pawn can be captured (None if not available)
+        self.en_passant_sq = None

@@ -45,9 +45,13 @@ def get_white_pawn_captures(board):
     black_pieces = board.get_all_black()
     
     captures_left = (pawns << 7) & ~FILE_H & black_pieces
-    
     captures_right = (pawns << 9) & ~FILE_A & black_pieces
-    
+
+    if board.en_passant_sq is not None:
+        ep_mask = (1 << board.en_passant_sq)
+        caps_left |= (pawns << 7) & ~FILE_H & ep_mask
+        caps_right |= (pawns << 9) & ~FILE_A & ep_mask
+
     return captures_left | captures_right
 
 def get_black_pawn_captures(board):
@@ -57,6 +61,11 @@ def get_black_pawn_captures(board):
     captures_right = (pawns >> 7) & ~FILE_A & white_pieces
     captures_left = (pawns >> 9) & ~FILE_H & white_pieces
     
+    if board.en_passant_sq is not None:
+        ep_mask = (1 << board.en_passant_sq)
+        captures_right |= (pawns >> 7) & ~FILE_A & ep_mask
+        captures_left |= (pawns >> 9) & ~FILE_H & ep_mask
+
     return captures_left | captures_right
 
 # Knight moves stuff now!    

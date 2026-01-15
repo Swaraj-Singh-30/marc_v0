@@ -57,8 +57,7 @@ def get_moves_for_piece(board, piece_type, is_white=True):
         if is_white:
             moves = move_gen.get_white_rook_moves(board)
         else:
-            # Note: Implement black rook moves in move_gen.py
-            moves = move_gen.get_white_rook_moves(board)  # temporary
+            moves = move_gen.get_black_rook_moves(board)
     elif piece_type == 'bishop':
         if is_white:
             moves = move_gen.get_white_bishop_moves(board)
