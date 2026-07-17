@@ -784,6 +784,117 @@ string getPiecePlacementKey(const string& fen) {
 //     cout << "=================================\n\n";
 // }
 
+// eval
+
+// --- EVALUATION PARAMETERS ---
+const int PIECE_VALUES[] = { 100, 320, 330, 500, 900, 20000 }; // PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING
+
+// Piece-Square Tables (Higher values mean better positional placement)
+const int PAWN_PST[64] = {
+      0,  0,  0,  0,  0,  0,  0,  0,
+     50, 50, 50, 50, 50, 50, 50, 50,
+     10, 10, 20, 30, 30, 20, 10, 10,
+      5,  5, 10, 25, 25, 10,  5,  5,
+      0,  0,  0, 20, 20,  0,  0,  0,
+      5, -5,-10,  0,  0,-10, -5,  5,
+      5, 10, 10,-20,-20, 10, 10,  5,
+      0,  0,  0,  0,  0,  0,  0,  0
+};
+
+const int KNIGHT_PST[64] = {
+    -50,-40,-30,-30,-30,-30,-40,-50,
+    -40,-20,  0,  0,  0,  0,-20,-40,
+    -30,  0, 10, 15, 15, 10,  0,-30,
+    -30,  5, 15, 20, 20, 15,  5,-30,
+    -30,  0, 15, 20, 20, 15,  0,-30,
+    -30,  5, 10, 15, 15, 10,  5,-30,
+    -40,-20,  0,  5,  5,  0,-20,-40,
+    -50,-40,-30,-30,-30,-30,-40,-50
+};
+
+const int BISHOP_PST[64] = {
+    -20,-10,-10,-10,-10,-10,-10,-20,
+    -10,  0,  0,  0,  0,  0,  0,-10,
+    -10,  0,  5, 10, 10,  5,  0,-10,
+    -10,  5,  5, 10, 10,  5,  5,-10,
+    -10,  0, 10, 10, 10, 10,  0,-10,
+    -10, 10, 10, 10, 10, 10, 10,-10,
+    -10,  5,  0,  0,  0,  0,  5,-10,
+    -20,-10,-10,-10,-10,-10,-10,-20
+};
+
+const int ROOK_PST[64] = {
+      0,  0,  0,  0,  0,  0,  0,  0,
+      5, 10, 10, 10, 10, 10, 10,  5,
+     -5,  0,  0,  0,  0,  0,  0, -5,
+     -5,  0,  0,  0,  0,  0,  0, -5,
+     -5,  0,  0,  0,  0,  0,  0, -5,
+     -5,  0,  0,  0,  0,  0,  0, -5,
+     -5,  0,  0,  0,  0,  0,  0, -5,
+      0,  0,  0,  5,  5,  0,  0,  0
+};
+
+const int QUEEN_PST[64] = {
+    -20,-10,-10, -5, -5,-10,-10,-20,
+    -10,  0,  0,  0,  0,  0,  0,-10,
+    -10,  0,  5,  5,  5,  5,  0,-10,
+     -5,  0,  5,  5,  5,  5,  0, -5,
+      0,  0,  5,  5,  5,  5,  0, -5,
+    -10,  5,  5,  5,  5,  5,  0,-10,
+    -10,  0,  5,  0,  0,  0,  0,-10,
+    -20,-10,-10, -5, -5,-10,-10,-20
+};
+
+const int KING_MIDDLE_PST[64] = {
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -20,-30,-30,-40,-40,-30,-30,-20,
+    -10,-20,-20,-20,-20,-20,-20,-10,
+     20, 20,  0,  0,  0,  0, 20, 20,
+     20, 30, 10,  0,  0, 10, 30, 20
+};
+
+// Main Static Evaluation Function
+int evaluate(const Position& pos) {
+    int score = 0;
+
+    // We make copies because popLeastSignificantBit mutates the bitboard
+    Bitboard wp = pos.whitePawns;
+    Bitboard wn = pos.whiteKnights;
+    Bitboard wb = pos.whiteBishops;
+    Bitboard wr = pos.whiteRooks;
+    Bitboard wq = pos.whiteQueens;
+    Bitboard wk = pos.whiteKing;
+
+    Bitboard bp = pos.blackPawns;
+    Bitboard bn = pos.blackKnights;
+    Bitboard bb = pos.blackBishops;
+    Bitboard br = pos.blackRooks;
+    Bitboard bq = pos.blackQueens;
+    Bitboard bk = pos.blackKing;
+
+    // --- WHITE EVALUATION ---
+    while (wp) { int sq = popLeastSignificantBit(wp); score += PIECE_VALUES[PAWN]   + PAWN_PST[sq]; }
+    while (wn) { int sq = popLeastSignificantBit(wn); score += PIECE_VALUES[KNIGHT] + KNIGHT_PST[sq]; }
+    while (wb) { int sq = popLeastSignificantBit(wb); score += PIECE_VALUES[BISHOP] + BISHOP_PST[sq]; }
+    while (wr) { int sq = popLeastSignificantBit(wr); score += PIECE_VALUES[ROOK]   + ROOK_PST[sq]; }
+    while (wq) { int sq = popLeastSignificantBit(wq); score += PIECE_VALUES[QUEEN]  + QUEEN_PST[sq]; }
+    while (wk) { int sq = popLeastSignificantBit(wk); score += PIECE_VALUES[KING]   + KING_MIDDLE_PST[sq]; }
+
+    // --- BLACK EVALUATION ---
+    // Note: Black's squares must be flipped vertically (sq ^ 56) because tables are written from White's perspective
+    while (bp) { int sq = popLeastSignificantBit(bp); score -= (PIECE_VALUES[PAWN]   + PAWN_PST[sq ^ 56]); }
+    while (bn) { int sq = popLeastSignificantBit(bn); score -= (PIECE_VALUES[KNIGHT] + KNIGHT_PST[sq ^ 56]); }
+    while (bb) { int sq = popLeastSignificantBit(bb); score -= (PIECE_VALUES[BISHOP] + BISHOP_PST[sq ^ 56]); }
+    while (br) { int sq = popLeastSignificantBit(br); score -= (PIECE_VALUES[ROOK]   + ROOK_PST[sq ^ 56]); }
+    while (bq) { int sq = popLeastSignificantBit(bq); score -= (PIECE_VALUES[QUEEN]  + QUEEN_PST[sq ^ 56]); }
+    while (bk) { int sq = popLeastSignificantBit(bk); score -= (PIECE_VALUES[KING]   + KING_MIDDLE_PST[sq ^ 56]); }
+
+    return score;
+}
+
 
 int main(){
     Position pos = createStartingPosition();
@@ -895,13 +1006,23 @@ int main(){
 
 
     //standard opening starting position
-    string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    Color sideToMove = parseFEN(pos, startFen);
+    // string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    // Color sideToMove = parseFEN(pos, startFen);
     
-    cout << "Running Standard Start Position Perft Tests\n";
-    cout << "Depth 1 nodes: " << perft(1, pos, sideToMove) << " (Expected: 20)\n";
-    cout << "Depth 2 nodes: " << perft(2, pos, sideToMove) << " (Expected: 400)\n";
-    cout << "Depth 3 nodes: " << perft(3, pos, sideToMove) << " (Expected: 8902)\n";
+    // cout << "Running Standard Start Position Perft Tests\n";
+    // cout << "Depth 1 nodes: " << perft(1, pos, sideToMove) << " (Expected: 20)\n";
+    // cout << "Depth 2 nodes: " << perft(2, pos, sideToMove) << " (Expected: 400)\n";
+    // cout << "Depth 3 nodes: " << perft(3, pos, sideToMove) << " (Expected: 8902)\n";
+
+    string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    parseFEN(pos, startFen);
+    cout << "--- Starting Position Evaluation ---\n";
+    cout << "Score: " << evaluate(pos) << " (Expected: 0)\n\n";
+
+    string whiteWinningFen = "rnb1kbnr/pppppppp/8/8/4Q3/8/PPPP1PPP/RNB1KBNR w KQkq - 0 1";
+    parseFEN(pos, whiteWinningFen);
+    cout << "--- White Advantage Position Evaluation ---\n";
+    cout << "Score: " << evaluate(pos) << " centipawns (Positive means White leads)\n";
 
     return 0;
 }
