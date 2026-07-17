@@ -152,6 +152,7 @@ void printBitboard(Bitboard b)
 {
     for(int rank = 7; rank >= 0; rank--)
     {
+        cout << rank + 1 << " ";
         for(int file = 0; file < 8; file++)
         {
             int sq = rank * 8 + file;
@@ -217,6 +218,54 @@ Bitboard knightAttacks(Bitboard knights)
     return moves;
 }
 
+Bitboard kingAttacks(Bitboard king) {
+    Bitboard moves = 0;
+     
+    Bitboard noA = king & ~FILE_A;
+    Bitboard noH = king & ~FILE_H;
+
+    // Straight Up and Down
+    moves |= king << 8;
+    moves |= king >> 8;
+
+    // Lateral Moves (Left / Right)
+    moves |= noH << 1; // Right
+    moves |= noA >> 1; // Left
+
+    moves |= noH << 9; // Up-Right
+    moves |= noA << 7; // Up-Left
+
+    moves |= noA >> 9; // Down-Left
+    moves |= noH >> 7; // Down-Right
+
+    return moves;
+}
+
+Bitboard whitePawnAttacks(Bitboard pawns){
+    Bitboard moves = 0;
+
+    Bitboard noA = pawns & ~FILE_A;
+    Bitboard noH = pawns & ~FILE_H;
+
+    moves|= pawns << 8; // forward move
+    moves|= pawns << 9; // right moves
+    moves|= pawns << 7; // left move 
+
+    return moves;
+}
+
+Bitboard blackPawnAttacks(Bitboard pawns){
+    Bitboard moves = 0;
+
+    Bitboard noA = pawns & ~FILE_A;
+    Bitboard noH = pawns & ~FILE_H;
+
+    moves|= pawns >> 8; // forward move
+    moves|= pawns >> 9; // right moves
+    moves|= pawns >> 7; // left move 
+
+    return moves;
+}
 
 int main(){
     Position pos = createStartingPosition();
@@ -228,9 +277,27 @@ int main(){
     // B1 = 1
     // G1 = 6
 
-    Bitboard whiteKnights = (1ULL << 1) |(1ULL << 6);
-    cout << "Knight attacks:\n";
-    Bitboard attacks = knightAttacks(whiteKnights);
+    // Bitboard whiteKnights = (1ULL << 1) |(1ULL << 6);
+    // cout << "Knight attacks:\n";
+    // Bitboard attacks = knightAttacks(whiteKnights);
+    // printBitboard(attacks);
+
+    // Bitboard whiteKing = (1ULL << 3) |(1ULL << 6);
+    // cout << "King attacks:\n";
+    // Bitboard attacks = kingAttacks(whiteKing);
+    // printBitboard(attacks);
+
+    // Bitboard whitePawns = (1ULL << 11);
+    // cout<< "White Pawn attacks\n";
+    // Bitboard attacks = whitePawnAttacks(whitePawns);
+    // printBitboard(attacks);
+
+    Bitboard blackPawns = (1ULL << 34);
+    cout<< "Black Pawn attacks\n";
+    Bitboard attacks = blackPawnAttacks(blackPawns);
     printBitboard(attacks);
+
+    
+
     return 0;
 }
