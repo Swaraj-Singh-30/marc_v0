@@ -1,6 +1,8 @@
 #include <iostream>
 #include <cstdint>
 #include <vector>
+#include <sstream>
+#include <cctype>
 
 using namespace std;
 
@@ -68,6 +70,7 @@ struct Move
     int capturedPiece; 
 };
 
+
 // Helper functions
 Position createStartingPosition(){
     Position pos{};
@@ -82,20 +85,20 @@ Position createStartingPosition(){
     {
         pos.whitePawns |= 1ULL << sq;
     }
-
+    
     // Black pieces
     pos.blackKing = 1ULL << E8;
     pos.blackQueens = 1ULL << D8;
     pos.blackRooks = (1ULL << A8) | (1ULL << H8);
     pos.blackKnights = (1ULL << B8) | (1ULL << G8);
     pos.blackBishops = (1ULL << C8) | (1ULL << F8);
-
+    
     pos.blackPawns = 0;
     for (int sq = A7; sq <= H7; sq++)
     {
         pos.blackPawns |= 1ULL << sq;
     }
-
+    
     pos.whitePieces =
     pos.whitePawns |
     pos.whiteKnights |
@@ -103,7 +106,7 @@ Position createStartingPosition(){
     pos.whiteRooks |
     pos.whiteQueens |
     pos.whiteKing;
-
+    
     pos.blackPieces =
     pos.blackPawns |
     pos.blackKnights |
@@ -111,29 +114,79 @@ Position createStartingPosition(){
     pos.blackRooks |
     pos.blackQueens |
     pos.blackKing;
-
+    
     pos.occupied = pos.whitePieces | pos.blackPieces;
     return pos;
 }
 
 void updateOccupancy(Position& pos){
     pos.whitePieces =
-        pos.whitePawns |
-        pos.whiteKnights |
-        pos.whiteBishops |
-        pos.whiteRooks |
-        pos.whiteQueens |
-        pos.whiteKing;
-
+    pos.whitePawns |
+    pos.whiteKnights |
+    pos.whiteBishops |
+    pos.whiteRooks |
+    pos.whiteQueens |
+    pos.whiteKing;
+    
     pos.blackPieces =
-        pos.blackPawns |
-        pos.blackKnights |
-        pos.blackBishops |
-        pos.blackRooks |
-        pos.blackQueens |
-        pos.blackKing;
-
+    pos.blackPawns |
+    pos.blackKnights |
+    pos.blackBishops |
+    pos.blackRooks |
+    pos.blackQueens |
+    pos.blackKing;
+    
     pos.occupied = pos.whitePieces | pos.blackPieces;
+}
+
+Color parseFEN(Position& pos, const string& fen) {
+    // Reset the position struct completely
+    pos = Position{};
+
+    stringstream ss(fen);
+    string piecePlacement, sideToMove;
+    ss >> piecePlacement >> sideToMove;
+
+    // Parse Piece Placement
+    int rank = 7; // FEN starts from rank 8 (index 7) down to rank 1 (index 0)
+    int file = 0;
+
+    for (char c : piecePlacement) {
+        if (c == '/') {
+            rank--;
+            file = 0;
+        } else if (isdigit(c)) {
+            file += (c - '0'); // Skip empty squares
+        } else {
+            Square sq = static_cast<Square>(rank * 8 + file);
+            Bitboard mask = 1ULL << sq;
+
+            switch (c) {
+                // White Pieces
+                case 'P': pos.whitePawns |= mask; break;
+                case 'N': pos.whiteKnights |= mask; break;
+                case 'B': pos.whiteBishops |= mask; break;
+                case 'R': pos.whiteRooks |= mask; break;
+                case 'Q': pos.whiteQueens |= mask; break;
+                case 'K': pos.whiteKing |= mask; break;
+                
+                // Black Pieces
+                case 'p': pos.blackPawns |= mask; break;
+                case 'n': pos.blackKnights |= mask; break;
+                case 'b': pos.blackBishops |= mask; break;
+                case 'r': pos.blackRooks |= mask; break;
+                case 'q': pos.blackQueens |= mask; break;
+                case 'k': pos.blackKing |= mask; break;
+            }
+            file++;
+        }
+    }
+
+    // Update all composite tracking masks (occupied, whitePieces, etc.)
+    updateOccupancy(pos);
+
+    //Parse Side to Move
+    return (sideToMove == "w") ? WHITE : BLACK;
 }
 
 void printBoard(const Position& pos){
@@ -645,32 +698,45 @@ int main(){
     // Bitboard qAttacks = queenAttacks(queenSquare, pos.occupied);
     // printBitboard(qAttacks);
 
-    cout << "--- Starting Position ---\n";
+    // cout << "--- Starting Position ---\n";
+    // printBoard(pos);
+
+    // // 1. Generate all initial moves for White
+    // vector<Move> whiteMoves = generateMoves(pos, WHITE);
+    // cout << "Total legal/pseudo-legal moves for White: " << whiteMoves.size() << "\n\n";
+
+    // // 2. Find and execute a specific move (E2 to E4)
+    // Move e2e4;
+    // bool found = false;
+    // for (const auto& m : whiteMoves) {
+    //     if (m.from == E2 && m.to == E4) {
+    //         e2e4 = m;
+    //         found = true;
+    //         break;
+    //     }
+    // }
+
+    // if (found) {
+    //     cout << "Executing E2 -> E4...\n";
+    //     makeMove(pos, e2e4, WHITE);
+    //     printBoard(pos);
+    // }
+    // // 3. See what Black can do next
+    // vector<Move> blackMoves = generateMoves(pos, BLACK);
+    // cout << "Total legal/pseudo-legal moves for Black: " << blackMoves.size() << "\n";
+
+
+    string customFen = "4r1k1/8/8/8/8/8/8/4K3 w - - 0 1";
+
+    cout << "Parsing FEN...\n";
+    Color sideToMove = parseFEN(pos, customFen);
+    
     printBoard(pos);
+    cout << "Side to move: " << (sideToMove == WHITE ? "White" : "Black") << "\n\n";
 
-    // 1. Generate all initial moves for White
-    vector<Move> whiteMoves = generateMoves(pos, WHITE);
-    cout << "Total legal/pseudo-legal moves for White: " << whiteMoves.size() << "\n\n";
-
-    // 2. Find and execute a specific move (E2 to E4)
-    Move e2e4;
-    bool found = false;
-    for (const auto& m : whiteMoves) {
-        if (m.from == E2 && m.to == E4) {
-            e2e4 = m;
-            found = true;
-            break;
-        }
-    }
-
-    if (found) {
-        cout << "Executing E2 -> E4...\n";
-        makeMove(pos, e2e4, WHITE);
-        printBoard(pos);
-    }
-    // 3. See what Black can do next
-    vector<Move> blackMoves = generateMoves(pos, BLACK);
-    cout << "Total legal/pseudo-legal moves for Black: " << blackMoves.size() << "\n";
+    // Test your legal move generator on this FEN
+    vector<Move> legalMoves = getLegalMoves(pos, sideToMove);
+    cout << "Total fully legal moves from this position: " << legalMoves.size() << "\n";
 
     return 0;
 }
