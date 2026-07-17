@@ -241,30 +241,94 @@ Bitboard kingAttacks(Bitboard king) {
     return moves;
 }
 
-Bitboard whitePawnAttacks(Bitboard pawns){
-    Bitboard moves = 0;
-
+Bitboard whitePawnAttacks(Bitboard pawns) {
     Bitboard noA = pawns & ~FILE_A;
     Bitboard noH = pawns & ~FILE_H;
 
-    moves|= pawns << 8; // forward move
-    moves|= pawns << 9; // right moves
-    moves|= pawns << 7; // left move 
-
-    return moves;
+    Bitboard attacks = 0;
+    attacks |= noA << 7; // Diagonal Up-Left
+    attacks |= noH << 9; // Diagonal Up-Right
+    return attacks;
 }
 
-Bitboard blackPawnAttacks(Bitboard pawns){
-    Bitboard moves = 0;
-
+Bitboard blackPawnAttacks(Bitboard pawns) {
     Bitboard noA = pawns & ~FILE_A;
     Bitboard noH = pawns & ~FILE_H;
 
-    moves|= pawns >> 8; // forward move
-    moves|= pawns >> 9; // right moves
-    moves|= pawns >> 7; // left move 
+    Bitboard attacks = 0;
+    attacks |= noA >> 9; // Diagonal Down-Left
+    attacks |= noH >> 7; // Diagonal Down-Right
+    return attacks;
+}
 
-    return moves;
+
+// Sliding pieces
+Bitboard bishopAttacks(Square sq, Bitboard occupied) {
+    Bitboard attacks = 0;
+    
+    // The 4 diagonal directions: (rank change, file change)
+    int dr[4] = { 1, 1, -1, -1 };
+    int df[4] = { 1, -1, 1, -1 };
+    
+    int startRank = sq / 8;
+    int startFile = sq % 8;
+
+    for (int i = 0; i < 4; i++) {
+        int r = startRank + dr[i];
+        int f = startFile + df[i];
+
+        // Keep sliding in this direction until we hit the edge of the board
+        while (r >= 0 && r < 8 && f >= 0 && f < 8) {
+            int targetSq = r * 8 + f;
+            attacks |= (1ULL << targetSq);
+
+            // If there is any piece on this square, we stop sliding in this direction
+            if (occupied & (1ULL << targetSq)) {
+                break;
+            }
+
+            r += dr[i];
+            f += df[i];
+        }
+    }
+    return attacks;
+}
+
+Bitboard rookAttacks(Square sq, Bitboard occupied) {
+    Bitboard attacks = 0;
+    
+    // The 4 orthogonal directions: (rank change, file change)
+    // Up, Down, Right, Left
+    int dr[4] = { 1, -1, 0, 0 };
+    int df[4] = { 0, 0, 1, -1 };
+    
+    int startRank = sq / 8;
+    int startFile = sq % 8;
+
+    for (int i = 0; i < 4; i++) {
+        int r = startRank + dr[i];
+        int f = startFile + df[i];
+
+        // Slide until we hit the board edge
+        while (r >= 0 && r < 8 && f >= 0 && f < 8) {
+            int targetSq = r * 8 + f;
+            attacks |= (1ULL << targetSq);
+
+            // Blocked by a piece? Stop sliding.
+            if (occupied & (1ULL << targetSq)) {
+                break;
+            }
+
+            r += dr[i];
+            f += df[i];
+        }
+    }
+    return attacks;
+}
+
+Bitboard queenAttacks(Square sq, Bitboard occupied) {
+    // A Queen is just a Rook and a Bishop put together!
+    return rookAttacks(sq, occupied) | bishopAttacks(sq, occupied);
 }
 
 int main(){
@@ -287,17 +351,28 @@ int main(){
     // Bitboard attacks = kingAttacks(whiteKing);
     // printBitboard(attacks);
 
-    // Bitboard whitePawns = (1ULL << 11);
-    // cout<< "White Pawn attacks\n";
-    // Bitboard attacks = whitePawnAttacks(whitePawns);
+    // // 1. Test White Pawn Attacks (e.g., Pawn on D2)
+    // Bitboard d2Pawn = (1ULL << D2);
+    // cout << "White Pawn (D2) attacks:\n";
+    // printBitboard(whitePawnAttacks(d2Pawn));
+
+    // // 2. Test Bishop Attacks (e.g., Bishop on D4, with starting board blockers)
+    // Square bishopSquare = D4;
+    // cout << "Bishop on D4 attacks (considering starting position occupancy):\n";
+    // Bitboard attacks = bishopAttacks(bishopSquare, pos.occupied);
     // printBitboard(attacks);
 
-    Bitboard blackPawns = (1ULL << 34);
-    cout<< "Black Pawn attacks\n";
-    Bitboard attacks = blackPawnAttacks(blackPawns);
-    printBitboard(attacks);
+    // 1. Test Rook Attacks from D4
+    Square rookSquare = D4;
+    cout << "Rook on D4 attacks:\n";
+    Bitboard rAttacks = rookAttacks(rookSquare, pos.occupied);
+    printBitboard(rAttacks);
 
-    
+    // 2. Test Queen Attacks from D4
+    Square queenSquare = D4;
+    cout << "Queen on D4 attacks:\n";
+    Bitboard qAttacks = queenAttacks(queenSquare, pos.occupied);
+    printBitboard(qAttacks);
 
     return 0;
 }
