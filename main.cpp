@@ -3,6 +3,7 @@
 #include <vector>
 #include <sstream>
 #include <cctype>
+#include <unordered_map>
 
 using namespace std;
 
@@ -18,6 +19,28 @@ enum Color { WHITE, BLACK };
 
 enum PieceType {
     PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING
+};
+
+// Explicit Move Types
+enum MoveType { NORMAL, CASTLE_KING, CASTLE_QUEEN, EN_PASSANT };
+
+// Bit-mask values for Castling Rights
+const int WHITE_OO  = 1; // 0001
+const int WHITE_OOO = 2; // 0010
+const int BLACK_OO  = 4; // 0100
+const int BLACK_OOO = 8; // 1000
+
+enum Square
+{
+    A1, B1, C1, D1, E1, F1, G1, H1,
+    A2, B2, C2, D2, E2, F2, G2, H2,
+    A3, B3, C3, D3, E3, F3, G3, H3,
+    A4, B4, C4, D4, E4, F4, G4, H4,
+    A5, B5, C5, D5, E5, F5, G5, H5,
+    A6, B6, C6, D6, E6, F6, G6, H6,
+    A7, B7, C7, D7, E7, F7, G7, H7,
+    A8, B8, C8, D8, E8, F8, G8, H8,
+    SQ_NONE 
 };
 
 struct Position
@@ -39,19 +62,11 @@ struct Position
     Bitboard whitePieces;
     Bitboard blackPieces;
     Bitboard occupied;
+
+    int castlingRights = 15; // 15 represents all rights active (1111 in binary)
+    Square epSquare = SQ_NONE;
 };
 
-enum Square
-{
-    A1, B1, C1, D1, E1, F1, G1, H1,
-    A2, B2, C2, D2, E2, F2, G2, H2,
-    A3, B3, C3, D3, E3, F3, G3, H3,
-    A4, B4, C4, D4, E4, F4, G4, H4,
-    A5, B5, C5, D5, E5, F5, G5, H5,
-    A6, B6, C6, D6, E6, F6, G6, H6,
-    A7, B7, C7, D7, E7, F7, G7, H7,
-    A8, B8, C8, D8, E8, F8, G8, H8
-};
 
 // Forward declarations for attack generators
 Bitboard knightAttacks(Bitboard knights);
@@ -62,12 +77,22 @@ Bitboard bishopAttacks(Square sq, Bitboard occupied);
 Bitboard rookAttacks(Square sq, Bitboard occupied);
 Bitboard queenAttacks(Square sq, Bitboard occupied);
 
+inline int popLeastSignificantBit(Bitboard& bb) {
+    if (bb == 0) return -1;
+    int index = __builtin_ctzll(bb); 
+    bb &= bb - 1; // Clears the lowest bit
+    return index;
+}
 struct Move
 {
     Square from;
     Square to;
     int piece;
     int capturedPiece; 
+    MoveType type = NORMAL;
+
+    int prevCastlingRights = 15;
+    Square prevEpSquare = SQ_NONE;
 };
 
 
@@ -144,8 +169,8 @@ Color parseFEN(Position& pos, const string& fen) {
     pos = Position{};
 
     stringstream ss(fen);
-    string piecePlacement, sideToMove;
-    ss >> piecePlacement >> sideToMove;
+    string piecePlacement, sideToMove, castleStr, epStr;
+    ss >> piecePlacement >> sideToMove >> castleStr >> epStr;
 
     // Parse Piece Placement
     int rank = 7; // FEN starts from rank 8 (index 7) down to rank 1 (index 0)
@@ -185,70 +210,28 @@ Color parseFEN(Position& pos, const string& fen) {
     // Update all composite tracking masks (occupied, whitePieces, etc.)
     updateOccupancy(pos);
 
-    //Parse Side to Move
-    return (sideToMove == "w") ? WHITE : BLACK;
-}
-
-void printBoard(const Position& pos){
-    for(int rank = 7; rank >= 0; rank--){
-        cout << rank + 1 << " ";
-        for(int file = 0; file < 8; file ++){
-            int sq = rank * 8 + file;
-                if (pos.whitePawns & (1ULL << sq))
-                    cout << "P ";
-                else if (pos.whiteKnights & (1ULL << sq))
-                    cout << "N ";
-                else if(pos.whiteBishops & (1ULL << sq))
-                    cout << "B ";
-                else if(pos.whiteRooks & (1ULL << sq))
-                    cout<< "R ";
-                else if(pos.whiteKing & (1ULL << sq))
-                    cout << "K ";
-                else if(pos.whiteQueens & (1ULL << sq))
-                    cout << "Q ";
-                else if (pos.blackPawns & (1ULL << sq))
-                    cout << "p ";
-                else if (pos.blackKnights & (1ULL << sq))
-                    cout << "n ";
-                else if(pos.blackBishops & (1ULL << sq))
-                    cout << "b ";
-                else if(pos.blackRooks & (1ULL << sq))
-                    cout<< "r ";
-                else if(pos.blackKing & (1ULL << sq))
-                    cout << "k ";
-                else if(pos.blackQueens & (1ULL << sq))
-                    cout << "q ";
-                else
-                    cout << ". ";
-            }
-            cout << '\n';
+    // Parse Castling Rights
+    pos.castlingRights = 0;
+    if (!castleStr.empty() && castleStr != "-") {
+        for (char c : castleStr) {
+            if (c == 'K') pos.castlingRights |= WHITE_OO;
+            if (c == 'Q') pos.castlingRights |= WHITE_OOO;
+            if (c == 'k') pos.castlingRights |= BLACK_OO;
+            if (c == 'q') pos.castlingRights |= BLACK_OOO;
         }
-        cout << "  a b c d e f g h\n";
-}
-
-void printBitboard(Bitboard b){
-    for(int rank = 7; rank >= 0; rank--)
-    {
-        cout << rank + 1 << " ";
-        for(int file = 0; file < 8; file++)
-        {
-            int sq = rank * 8 + file;
-            if(b & (1ULL << sq))
-                cout << "1 ";
-            else
-                cout << ". ";
-        }
-        cout << '\n';
     }
-    cout << "  a b c d e f g h\n\n";
-}
 
-// Returns the index (0-63) of the least significant 1-bit, then clears it.
-inline int popLeastSignificantBit(Bitboard& bb) {
-    if (bb == 0) return -1;
-    int index = __builtin_ctzll(bb); 
-    bb &= bb - 1; // Clears the lowest bit
-    return index;
+    // Parse En Passant Target Square
+    if (epStr == "-" || epStr.empty()) {
+        pos.epSquare = SQ_NONE;
+    } else {
+        int f = epStr[0] - 'a';
+        int r = epStr[1] - '1';
+        pos.epSquare = static_cast<Square>(r * 8 + f);
+    }
+
+    // Return Side to Move safely at the bottom
+    return (sideToMove == "w") ? WHITE : BLACK;
 }
 
 int getPieceAtSquare(const Position& pos, Square sq, Color side) {
@@ -271,6 +254,35 @@ int getPieceAtSquare(const Position& pos, Square sq, Color side) {
     return -1; // No piece found
 }
 
+bool isSquareAttacked(const Position& pos, Square sq, Color attackerColor){
+    Bitboard target = 1ULL << sq;
+    if (attackerColor == WHITE) {
+        // If a White pawn is down-left or down-right of the square, it attacks it
+        Bitboard attackers = 0;
+        attackers |= (target >> 7) & ~FILE_A;
+        attackers |= (target >> 9) & ~FILE_H;
+        if (attackers & pos.whitePawns) return true;
+
+        if (knightAttacks(target) & pos.whiteKnights) return true;
+        if (kingAttacks(target) & pos.whiteKing) return true;
+        if (bishopAttacks(sq, pos.occupied) & (pos.whiteBishops | pos.whiteQueens)) return true;
+        if (rookAttacks(sq, pos.occupied) & (pos.whiteRooks | pos.whiteQueens)) return true;
+    } 
+    else {
+        // If a Black pawn is up-left or up-right of the square, it attacks it
+        Bitboard attackers = 0;
+        attackers |= (target << 9) & ~FILE_A;
+        attackers |= (target << 7) & ~FILE_H;
+        if (attackers & pos.blackPawns) return true;
+
+        if (knightAttacks(target) & pos.blackKnights) return true;
+        if (kingAttacks(target) & pos.blackKing) return true;
+        if (bishopAttacks(sq, pos.occupied) & (pos.blackBishops | pos.blackQueens)) return true;
+        if (rookAttacks(sq, pos.occupied) & (pos.blackRooks | pos.blackQueens)) return true;
+    }
+    return false;
+}
+
 vector<Move> generateMoves(const Position& pos, Color side) {
     vector<Move> moveList;
     
@@ -286,10 +298,7 @@ vector<Move> generateMoves(const Position& pos, Color side) {
         Bitboard targets = knightAttacks(1ULL << from) & notFriendly;
         while (targets) {
             Square to = static_cast<Square>(popLeastSignificantBit(targets));
-            int captured = -1;
-            if (enemyPieces & (1ULL << to)) {
-                captured = getPieceAtSquare(pos, to, enemyColor);
-            }
+            int captured = (enemyPieces & (1ULL << to)) ? getPieceAtSquare(pos, to, enemyColor) : -1;
             moveList.push_back({from, to, KNIGHT, captured});
         }
     }
@@ -301,10 +310,7 @@ vector<Move> generateMoves(const Position& pos, Color side) {
             Bitboard targets = attackFunc(from, pos.occupied) & notFriendly;
             while (targets) {
                 Square to = static_cast<Square>(popLeastSignificantBit(targets));
-                int captured = -1;
-                if (enemyPieces & (1ULL << to)) {
-                    captured = getPieceAtSquare(pos, to, enemyColor);
-                }
+                int captured = (enemyPieces & (1ULL << to)) ? getPieceAtSquare(pos, to, enemyColor) : -1;
                 moveList.push_back({from, to, type, captured});
             }
         }
@@ -314,59 +320,89 @@ vector<Move> generateMoves(const Position& pos, Color side) {
     generateSliding((side == WHITE) ? pos.whiteRooks   : pos.blackRooks,   ROOK,   rookAttacks);
     generateSliding((side == WHITE) ? pos.whiteQueens  : pos.blackQueens,  QUEEN,  queenAttacks);
 
-    // --- 3. KING ---
+    // --- 3. KING & CASTLING ---
     Bitboard king = (side == WHITE) ? pos.whiteKing : pos.blackKing;
     if (king) {
         Square from = static_cast<Square>(popLeastSignificantBit(king));
         Bitboard targets = kingAttacks(1ULL << from) & notFriendly;
         while (targets) {
             Square to = static_cast<Square>(popLeastSignificantBit(targets));
-            int captured = -1;
-            if (enemyPieces & (1ULL << to)) {
-                captured = getPieceAtSquare(pos, to, enemyColor);
-            }
+            int captured = (enemyPieces & (1ULL << to)) ? getPieceAtSquare(pos, to, enemyColor) : -1;
             moveList.push_back({from, to, KING, captured});
+        }
+
+        // Castling logic (Check rights, empty squares, and square attacks)
+        if (side == WHITE) {
+            if (!isSquareAttacked(pos, E1, BLACK)) {
+                if ((pos.castlingRights & WHITE_OO) && !(pos.occupied & ((1ULL << F1) | (1ULL << G1)))) {
+                    if (!isSquareAttacked(pos, F1, BLACK) && !isSquareAttacked(pos, G1, BLACK)) {
+                        moveList.push_back({E1, G1, KING, -1, CASTLE_KING});
+                    }
+                }
+                if ((pos.castlingRights & WHITE_OOO) && !(pos.occupied & ((1ULL << D1) | (1ULL << C1) | (1ULL << B1)))) {
+                    if (!isSquareAttacked(pos, D1, BLACK) && !isSquareAttacked(pos, C1, BLACK)) {
+                        moveList.push_back({E1, C1, KING, -1, CASTLE_QUEEN});
+                    }
+                }
+            }
+        } else {
+            if (!isSquareAttacked(pos, E8, WHITE)) {
+                if ((pos.castlingRights & BLACK_OO) && !(pos.occupied & ((1ULL << F8) | (1ULL << G8)))) {
+                    if (!isSquareAttacked(pos, F8, WHITE) && !isSquareAttacked(pos, G8, WHITE)) {
+                        moveList.push_back({E8, G8, KING, -1, CASTLE_KING});
+                    }
+                }
+                if ((pos.castlingRights & BLACK_OOO) && !(pos.occupied & ((1ULL << D8) | (1ULL << C8) | (1ULL << B8)))) {
+                    if (!isSquareAttacked(pos, D8, WHITE) && !isSquareAttacked(pos, C8, WHITE)) {
+                        moveList.push_back({E8, C8, KING, -1, CASTLE_QUEEN});
+                    }
+                }
+            }
         }
     }
 
-    // --- 4. PAWNS ---
+    // --- 4. PAWNS & EN PASSANT ---
     Bitboard pawns = (side == WHITE) ? pos.whitePawns : pos.blackPawns;
     while (pawns) {
         Square from = static_cast<Square>(popLeastSignificantBit(pawns));
         
         if (side == WHITE) {
-            // Quiet Push
             Square to = static_cast<Square>(from + 8);
             if (!(pos.occupied & (1ULL << to))) {
                 moveList.push_back({from, to, PAWN, -1});
-                // Double Push from rank 2
                 if (from >= A2 && from <= H2 && !(pos.occupied & (1ULL << (from + 16)))) {
                     moveList.push_back({from, static_cast<Square>(from + 16), PAWN, -1});
                 }
             }
-            // Capture targets
             Bitboard targets = whitePawnAttacks(1ULL << from) & enemyPieces;
             while (targets) {
-                Square to = static_cast<Square>(popLeastSignificantBit(targets));
-                int captured = getPieceAtSquare(pos, to, BLACK);
-                moveList.push_back({from, to, PAWN, captured});
+                Square toSq = static_cast<Square>(popLeastSignificantBit(targets));
+                moveList.push_back({from, toSq, PAWN, getPieceAtSquare(pos, toSq, BLACK)});
             }
-        } else { // Black pawns
-            // Quiet Push
+            if (pos.epSquare != SQ_NONE) {
+                Bitboard epMask = 1ULL << pos.epSquare;
+                if (whitePawnAttacks(1ULL << from) & epMask) {
+                    moveList.push_back({from, pos.epSquare, PAWN, PAWN, EN_PASSANT});
+                }
+            }
+        } else { 
             Square to = static_cast<Square>(from - 8);
             if (!(pos.occupied & (1ULL << to))) {
                 moveList.push_back({from, to, PAWN, -1});
-                // Double Push from rank 7
                 if (from >= A7 && from <= H7 && !(pos.occupied & (1ULL << (from - 16)))) {
                     moveList.push_back({from, static_cast<Square>(from - 16), PAWN, -1});
                 }
             }
-            // Capture targets
             Bitboard targets = blackPawnAttacks(1ULL << from) & enemyPieces;
             while (targets) {
-                Square to = static_cast<Square>(popLeastSignificantBit(targets));
-                int captured = getPieceAtSquare(pos, to, WHITE);
-                moveList.push_back({from, to, PAWN, captured});
+                Square toSq = static_cast<Square>(popLeastSignificantBit(targets));
+                moveList.push_back({from, toSq, PAWN, getPieceAtSquare(pos, toSq, WHITE)});
+            }
+            if (pos.epSquare != SQ_NONE) {
+                Bitboard epMask = 1ULL << pos.epSquare;
+                if (blackPawnAttacks(1ULL << from) & epMask) {
+                    moveList.push_back({from, pos.epSquare, PAWN, PAWN, EN_PASSANT});
+                }
             }
         }
     }
@@ -375,53 +411,91 @@ vector<Move> generateMoves(const Position& pos, Color side) {
 }
 
 void makeMove(Position& pos, Move& move, Color side) {
+    move.prevCastlingRights = pos.castlingRights;
+    move.prevEpSquare = pos.epSquare;
+
     Bitboard fromBB = 1ULL << move.from;
     Bitboard toBB   = 1ULL << move.to;
 
-    // 1. Identify and store capture data
-    Color enemyColor = (side == WHITE) ? BLACK : WHITE;
-    move.capturedPiece = getPieceAtSquare(pos, move.to, enemyColor);
-
-    if (move.capturedPiece != -1) {
+    // Handle standard captures
+    if (move.capturedPiece != -1 && move.type != EN_PASSANT) {
         if (side == WHITE) {
             if (move.capturedPiece == PAWN)   pos.blackPawns   &= ~toBB;
             if (move.capturedPiece == KNIGHT) pos.blackKnights &= ~toBB;
             if (move.capturedPiece == BISHOP) pos.blackBishops &= ~toBB;
             if (move.capturedPiece == ROOK)   pos.blackRooks   &= ~toBB;
             if (move.capturedPiece == QUEEN)  pos.blackQueens  &= ~toBB;
-            if (move.capturedPiece == KING)   pos.blackKing    &= ~toBB;
         } else {
             if (move.capturedPiece == PAWN)   pos.whitePawns   &= ~toBB;
             if (move.capturedPiece == KNIGHT) pos.whiteKnights &= ~toBB;
             if (move.capturedPiece == BISHOP) pos.whiteBishops &= ~toBB;
             if (move.capturedPiece == ROOK)   pos.whiteRooks   &= ~toBB;
             if (move.capturedPiece == QUEEN)  pos.whiteQueens  &= ~toBB;
-            if (move.capturedPiece == KING)   pos.whiteKing    &= ~toBB;
         }
     }
 
-    // 2. Move your own piece
-    Bitboard* pieceBB = nullptr;
-    if (side == WHITE) {
-        if (move.piece == PAWN)   pieceBB = &pos.whitePawns;
-        if (move.piece == KNIGHT) pieceBB = &pos.whiteKnights;
-        if (move.piece == BISHOP) pieceBB = &pos.whiteBishops;
-        if (move.piece == ROOK)   pieceBB = &pos.whiteRooks;
-        if (move.piece == QUEEN)  pieceBB = &pos.whiteQueens;
-        if (move.piece == KING)   pieceBB = &pos.whiteKing;
-    } else {
-        if (move.piece == PAWN)   pieceBB = &pos.blackPawns;
-        if (move.piece == KNIGHT) pieceBB = &pos.blackKnights;
-        if (move.piece == BISHOP) pieceBB = &pos.blackBishops;
-        if (move.piece == ROOK)   pieceBB = &pos.blackRooks;
-        if (move.piece == QUEEN)  pieceBB = &pos.blackQueens;
-        if (move.piece == KING)   pieceBB = &pos.blackKing;
+    pos.epSquare = SQ_NONE; // Reset defaultly
+
+    if (move.type == NORMAL) {
+        Bitboard* pieceBB = nullptr;
+        if (side == WHITE) {
+            if (move.piece == PAWN) {
+                pieceBB = &pos.whitePawns;
+                if (static_cast<int>(move.to) - static_cast<int>(move.from) == 16) 
+                    pos.epSquare = static_cast<Square>(move.from + 8);
+            }
+            if (move.piece == KNIGHT) pieceBB = &pos.whiteKnights;
+            if (move.piece == BISHOP) pieceBB = &pos.whiteBishops;
+            if (move.piece == ROOK)   pieceBB = &pos.whiteRooks;
+            if (move.piece == QUEEN)  pieceBB = &pos.whiteQueens;
+            if (move.piece == KING)   pieceBB = &pos.whiteKing;
+        } else {
+            if (move.piece == PAWN) {
+                pieceBB = &pos.blackPawns;
+                if (static_cast<int>(move.from) - static_cast<int>(move.to) == 16) 
+                    pos.epSquare = static_cast<Square>(move.from - 8);
+            }
+            if (move.piece == KNIGHT) pieceBB = &pos.blackKnights;
+            if (move.piece == BISHOP) pieceBB = &pos.blackBishops;
+            if (move.piece == ROOK)   pieceBB = &pos.blackRooks;
+            if (move.piece == QUEEN)  pieceBB = &pos.blackQueens;
+            if (move.piece == KING)   pieceBB = &pos.blackKing;
+        }
+        if (pieceBB) { *pieceBB &= ~fromBB; *pieceBB |= toBB; }
+
+    } else if (move.type == EN_PASSANT) {
+        if (side == WHITE) {
+            pos.whitePawns &= ~fromBB; pos.whitePawns |= toBB;
+            pos.blackPawns &= ~(1ULL << (move.to - 8));
+        } else {
+            pos.blackPawns &= ~fromBB; pos.blackPawns |= toBB;
+            pos.whitePawns &= ~(1ULL << (move.to + 8));
+        }
+    } else if (move.type == CASTLE_KING) {
+        if (side == WHITE) {
+            pos.whiteKing &= ~(1ULL << E1); pos.whiteKing |= (1ULL << G1);
+            pos.whiteRooks &= ~(1ULL << H1); pos.whiteRooks |= (1ULL << F1);
+        } else {
+            pos.blackKing &= ~(1ULL << E8); pos.blackKing |= (1ULL << G8);
+            pos.blackRooks &= ~(1ULL << H8); pos.blackRooks |= (1ULL << F8);
+        }
+    } else if (move.type == CASTLE_QUEEN) {
+        if (side == WHITE) {
+            pos.whiteKing &= ~(1ULL << E1); pos.whiteKing |= (1ULL << C1);
+            pos.whiteRooks &= ~(1ULL << A1); pos.whiteRooks |= (1ULL << D1);
+        } else {
+            pos.blackKing &= ~(1ULL << E8); pos.blackKing |= (1ULL << C8);
+            pos.blackRooks &= ~(1ULL << A8); pos.blackRooks |= (1ULL << D8);
+        }
     }
 
-    if (pieceBB) {
-        *pieceBB &= ~fromBB;
-        *pieceBB |= toBB;
-    }
+    // Castling rights status revocation
+    if (move.from == E1 || move.to == E1) pos.castlingRights &= ~(WHITE_OO | WHITE_OOO);
+    if (move.from == A1 || move.to == A1) pos.castlingRights &= ~WHITE_OOO;
+    if (move.from == H1 || move.to == H1) pos.castlingRights &= ~WHITE_OO;
+    if (move.from == E8 || move.to == E8) pos.castlingRights &= ~(BLACK_OO | BLACK_OOO);
+    if (move.from == A8 || move.to == A8) pos.castlingRights &= ~BLACK_OOO;
+    if (move.from == H8 || move.to == H8) pos.castlingRights &= ~BLACK_OO;
 
     updateOccupancy(pos);
 }
@@ -430,68 +504,69 @@ void undoMove(Position& pos, const Move& move, Color side) {
     Bitboard fromBB = 1ULL << move.from;
     Bitboard toBB   = 1ULL << move.to;
 
-    // 1. Move your piece back
-    Bitboard* pieceBB = nullptr;
-    if (side == WHITE) {
-        if (move.piece == PAWN)   pieceBB = &pos.whitePawns;
-        if (move.piece == KNIGHT) pieceBB = &pos.whiteKnights;
-        if (move.piece == BISHOP) pieceBB = &pos.whiteBishops;
-        if (move.piece == ROOK)   pieceBB = &pos.whiteRooks;
-        if (move.piece == QUEEN)  pieceBB = &pos.whiteQueens;
-        if (move.piece == KING)   pieceBB = &pos.whiteKing;
-    } else {
-        if (move.piece == PAWN)   pieceBB = &pos.blackPawns;
-        if (move.piece == KNIGHT) pieceBB = &pos.blackKnights;
-        if (move.piece == BISHOP) pieceBB = &pos.blackBishops;
-        if (move.piece == ROOK)   pieceBB = &pos.blackRooks;
-        if (move.piece == QUEEN)  pieceBB = &pos.blackQueens;
-        if (move.piece == KING)   pieceBB = &pos.blackKing;
-    }
+    if (move.type == NORMAL) {
+        Bitboard* pieceBB = nullptr;
+        if (side == WHITE) {
+            if (move.piece == PAWN)   pieceBB = &pos.whitePawns;
+            if (move.piece == KNIGHT) pieceBB = &pos.whiteKnights;
+            if (move.piece == BISHOP) pieceBB = &pos.whiteBishops;
+            if (move.piece == ROOK)   pieceBB = &pos.whiteRooks;
+            if (move.piece == QUEEN)  pieceBB = &pos.whiteQueens;
+            if (move.piece == KING)   pieceBB = &pos.whiteKing;
+        } else {
+            if (move.piece == PAWN)   pieceBB = &pos.blackPawns;
+            if (move.piece == KNIGHT) pieceBB = &pos.blackKnights;
+            if (move.piece == BISHOP) pieceBB = &pos.blackBishops;
+            if (move.piece == ROOK)   pieceBB = &pos.blackRooks;
+            if (move.piece == QUEEN)  pieceBB = &pos.blackQueens;
+            if (move.piece == KING)   pieceBB = &pos.blackKing;
+        }
+        if (pieceBB) { *pieceBB |= fromBB; *pieceBB &= ~toBB; }
 
-    if (pieceBB) {
-        *pieceBB |= fromBB;  // Put it back on the starting square
-        *pieceBB &= ~toBB;   // Clear it from the landing square
-    }
-
-    // 2. Resurrect any piece that was captured
-    if (move.capturedPiece != -1) {
-        if (side == WHITE) { // Opponent was Black
-            if (move.capturedPiece == PAWN)   pos.blackPawns   |= toBB;
-            if (move.capturedPiece == KNIGHT) pos.blackKnights |= toBB;
-            if (move.capturedPiece == BISHOP) pos.blackBishops |= toBB;
-            if (move.capturedPiece == ROOK)   pos.blackRooks   |= toBB;
-            if (move.capturedPiece == QUEEN)  pos.blackQueens  |= toBB;
-            if (move.capturedPiece == KING)   pos.blackKing    |= toBB;
-        } else { // Opponent was White
-            if (move.capturedPiece == PAWN)   pos.whitePawns   |= toBB;
-            if (move.capturedPiece == KNIGHT) pos.whiteKnights |= toBB;
-            if (move.capturedPiece == BISHOP) pos.whiteBishops |= toBB;
-            if (move.capturedPiece == ROOK)   pos.whiteRooks   |= toBB;
-            if (move.capturedPiece == QUEEN)  pos.whiteQueens  |= toBB;
-            if (move.capturedPiece == KING)   pos.whiteKing    |= toBB;
+        if (move.capturedPiece != -1) {
+            if (side == WHITE) {
+                if (move.capturedPiece == PAWN)   pos.blackPawns   |= toBB;
+                if (move.capturedPiece == KNIGHT) pos.blackKnights |= toBB;
+                if (move.capturedPiece == BISHOP) pos.blackBishops |= toBB;
+                if (move.capturedPiece == ROOK)   pos.blackRooks   |= toBB;
+                if (move.capturedPiece == QUEEN)  pos.blackQueens  |= toBB;
+            } else {
+                if (move.capturedPiece == PAWN)   pos.whitePawns   |= toBB;
+                if (move.capturedPiece == KNIGHT) pos.whiteKnights |= toBB;
+                if (move.capturedPiece == BISHOP) pos.whiteBishops |= toBB;
+                if (move.capturedPiece == ROOK)   pos.whiteRooks   |= toBB;
+                if (move.capturedPiece == QUEEN)  pos.whiteQueens  |= toBB;
+            }
+        }
+    } else if (move.type == EN_PASSANT) {
+        if (side == WHITE) {
+            pos.whitePawns |= fromBB; pos.whitePawns &= ~toBB;
+            pos.blackPawns |= (1ULL << (move.to - 8));
+        } else {
+            pos.blackPawns |= fromBB; pos.blackPawns &= ~toBB;
+            pos.whitePawns |= (1ULL << (move.to + 8));
+        }
+    } else if (move.type == CASTLE_KING) {
+        if (side == WHITE) {
+            pos.whiteKing |= (1ULL << E1); pos.whiteKing &= ~(1ULL << G1);
+            pos.whiteRooks |= (1ULL << H1); pos.whiteRooks &= ~(1ULL << F1);
+        } else {
+            pos.blackKing |= (1ULL << E8); pos.blackKing &= ~(1ULL << G8);
+            pos.blackRooks |= (1ULL << H8); pos.blackRooks &= ~(1ULL << F8);
+        }
+    } else if (move.type == CASTLE_QUEEN) {
+        if (side == WHITE) {
+            pos.whiteKing |= (1ULL << E1); pos.whiteKing &= ~(1ULL << C1);
+            pos.whiteRooks |= (1ULL << A1); pos.whiteRooks &= ~(1ULL << D1);
+        } else {
+            pos.blackKing |= (1ULL << E8); pos.blackKing &= ~(1ULL << C8);
+            pos.blackRooks |= (1ULL << A8); pos.blackRooks &= ~(1ULL << D8);
         }
     }
 
+    pos.castlingRights = move.prevCastlingRights;
+    pos.epSquare = move.prevEpSquare;
     updateOccupancy(pos);
-}
-
-bool isSquareAttacked(const Position& pos, Square sq, Color attackerColor){
-    Bitboard target = 1ULL << sq;
-    if (attackerColor == WHITE) {
-        if (blackPawnAttacks(target) & pos.whitePawns) return true;
-        if (knightAttacks(target) & pos.whiteKnights) return true;
-        if (kingAttacks(target) & pos.whiteKing) return true;
-        if (bishopAttacks(sq, pos.occupied) & (pos.whiteBishops | pos.whiteQueens)) return true;
-        if (rookAttacks(sq, pos.occupied) & (pos.whiteRooks | pos.whiteQueens)) return true;
-    } 
-    else {
-        if (whitePawnAttacks(target) & pos.blackPawns) return true;
-        if (knightAttacks(target) & pos.blackKnights) return true;
-        if (kingAttacks(target) & pos.blackKing) return true;
-        if (bishopAttacks(sq, pos.occupied) & (pos.blackBishops | pos.blackQueens)) return true;
-        if (rookAttacks(sq, pos.occupied) & (pos.blackRooks | pos.blackQueens)) return true;
-    }
-    return false;
 }
 
 // legal moves
@@ -505,6 +580,7 @@ vector<Move> getLegalMoves(Position& pos, Color side) {
 
         Bitboard kingBB = (side == WHITE) ? pos.whiteKing : pos.blackKing;
         if (kingBB) {
+            // Safely grab index using tracking bitboard
             Square kingSq = static_cast<Square>(__builtin_ctzll(kingBB));
             if (!isSquareAttacked(pos, kingSq, enemyColor)) {
                 legalMoves.push_back(m);
@@ -673,6 +749,42 @@ Bitboard queenAttacks(Square sq, Bitboard occupied) {
     return rookAttacks(sq, occupied) | bishopAttacks(sq, occupied);
 }
 
+// // Maps structural piece placement to its Opening Name and Recommended Move
+// const unordered_map<string, pair<string, string>> OPENING_BOOK = {
+//     {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", {"Starting Position", "e2e4"}},
+//     {"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR", {"King's Pawn Game (1.e4)", "e7e5"}},
+//     {"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR", {"Open Game (1.e4 e5)", "g1f3"}},
+//     {"rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR", {"Queen's Pawn Game (1.d4)", "d7d5"}}
+// };
+
+// Extracts just the board array portion from any incoming FEN string
+string getPiecePlacementKey(const string& fen) {
+    stringstream ss(fen);
+    string piecePlacement;
+    ss >> piecePlacement;
+    return piecePlacement;
+}
+
+
+//useless stuff here btw
+// Checks if the current board arrangement is an established opening
+// void checkStandardOpening(const string& currentFen) {
+//     string key = getPiecePlacementKey(currentFen);
+//     auto it = OPENING_BOOK.find(key);
+    
+//     cout << "\n=================================\n";
+//     cout << "       OPENING BOOK DETECTOR       \n";
+//     cout << "=================================\n";
+//     if (it != OPENING_BOOK.end()) {
+//         cout << "Detected Setup : " << it->second.first << "\n";
+//         cout << "Book Move Choice: " << it->second.second << "\n";
+//     } else {
+//         cout << "Result: Position out of book. Engine calculation required.\n";
+//     }
+//     cout << "=================================\n\n";
+// }
+
+
 int main(){
     Position pos = createStartingPosition();
     // printBoard(pos);
@@ -756,13 +868,40 @@ int main(){
     // cout << "Total fully legal moves from this position: " << legalMoves.size() << "\n";
 
 
-    string customFen = "4r1k1/8/8/8/8/8/8/4K3 w - - 0 1";
-    Color sideToMove = parseFEN(pos, customFen);
+    // string customFen = "4r1k1/8/8/8/8/8/8/4K3 w - - 0 1";
+    // Color sideToMove = parseFEN(pos, customFen);
     
-    cout << "Running Perft Tests...\n";
-    cout << "Depth 1 nodes: " << perft(1, pos, sideToMove) << " (Expected: 4)\n";
-    cout << "Depth 2 nodes: " << perft(2, pos, sideToMove) << "\n";
-    cout << "Depth 3 nodes: " << perft(3, pos, sideToMove) << "\n";
+    // cout << "Running Perft Tests...\n";
+    // cout << "Depth 1 nodes: " << perft(1, pos, sideToMove) << " (Expected: 4)\n";
+    // cout << "Depth 2 nodes: " << perft(2, pos, sideToMove) << "\n";
+    // cout << "Depth 3 nodes: " << perft(3, pos, sideToMove) << "\n";
+
+    // string customFen = "4r1k1/8/8/8/8/8/8/4K3 w - - 0 1";
+    // Color sideToMove = parseFEN(pos, customFen);
+    
+    // cout << "Running Perft Tests...\n";
+    // cout << "Depth 1 nodes: " << perft(1, pos, sideToMove) << " (Expected: 4)\n";
+    // cout << "Depth 2 nodes: " << perft(2, pos, sideToMove) << " (Expected: 58)\n";
+    // cout << "Depth 3 nodes: " << perft(3, pos, sideToMove) << "\n";
+
+    // // 2. Test standard opening book tracking on normal positions
+    // cout << "\nTesting Opening Book matching entries:\n";
+    
+    // string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    // checkStandardOpening(startFen);
+    
+    // string afterE4Fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+    // checkStandardOpening(afterE4Fen);
+
+
+    //standard opening starting position
+    string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    Color sideToMove = parseFEN(pos, startFen);
+    
+    cout << "Running Standard Start Position Perft Tests\n";
+    cout << "Depth 1 nodes: " << perft(1, pos, sideToMove) << " (Expected: 20)\n";
+    cout << "Depth 2 nodes: " << perft(2, pos, sideToMove) << " (Expected: 400)\n";
+    cout << "Depth 3 nodes: " << perft(3, pos, sideToMove) << " (Expected: 8902)\n";
 
     return 0;
 }
