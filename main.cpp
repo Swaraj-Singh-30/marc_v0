@@ -1,7 +1,8 @@
 #include <iostream>
 #include <cstdint>
-using namespace std;
+#include <vector>
 
+using namespace std;
 
 using Bitboard = uint64_t;
 
@@ -11,39 +12,62 @@ const Bitboard FILE_B = 0x0202020202020202ULL;
 const Bitboard FILE_G = 0x4040404040404040ULL;
 const Bitboard FILE_H = 0x8080808080808080ULL;
 
-    struct Position
-    {
-        Bitboard whitePawns;
-        Bitboard whiteKnights;
-        Bitboard whiteBishops;
-        Bitboard whiteRooks;
-        Bitboard whiteQueens;
-        Bitboard whiteKing;
+enum Color { WHITE, BLACK };
 
-        Bitboard blackPawns;
-        Bitboard blackKnights;
-        Bitboard blackBishops;
-        Bitboard blackRooks;
-        Bitboard blackQueens;
-        Bitboard blackKing;
+enum PieceType {
+    PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING
+};
 
-        Bitboard whitePieces;
-        Bitboard blackPieces;
-        Bitboard occupied;
-    };
+struct Position
+{
+    Bitboard whitePawns;
+    Bitboard whiteKnights;
+    Bitboard whiteBishops;
+    Bitboard whiteRooks;
+    Bitboard whiteQueens;
+    Bitboard whiteKing;
 
-    enum Square
-    {
-        A1, B1, C1, D1, E1, F1, G1, H1,
-        A2, B2, C2, D2, E2, F2, G2, H2,
-        A3, B3, C3, D3, E3, F3, G3, H3,
-        A4, B4, C4, D4, E4, F4, G4, H4,
-        A5, B5, C5, D5, E5, F5, G5, H5,
-        A6, B6, C6, D6, E6, F6, G6, H6,
-        A7, B7, C7, D7, E7, F7, G7, H7,
-        A8, B8, C8, D8, E8, F8, G8, H8
-    };
+    Bitboard blackPawns;
+    Bitboard blackKnights;
+    Bitboard blackBishops;
+    Bitboard blackRooks;
+    Bitboard blackQueens;
+    Bitboard blackKing;
 
+    Bitboard whitePieces;
+    Bitboard blackPieces;
+    Bitboard occupied;
+};
+
+enum Square
+{
+    A1, B1, C1, D1, E1, F1, G1, H1,
+    A2, B2, C2, D2, E2, F2, G2, H2,
+    A3, B3, C3, D3, E3, F3, G3, H3,
+    A4, B4, C4, D4, E4, F4, G4, H4,
+    A5, B5, C5, D5, E5, F5, G5, H5,
+    A6, B6, C6, D6, E6, F6, G6, H6,
+    A7, B7, C7, D7, E7, F7, G7, H7,
+    A8, B8, C8, D8, E8, F8, G8, H8
+};
+
+// Forward declarations for attack generators
+Bitboard knightAttacks(Bitboard knights);
+Bitboard kingAttacks(Bitboard king);
+Bitboard whitePawnAttacks(Bitboard pawns);
+Bitboard blackPawnAttacks(Bitboard pawns);
+Bitboard bishopAttacks(Square sq, Bitboard occupied);
+Bitboard rookAttacks(Square sq, Bitboard occupied);
+Bitboard queenAttacks(Square sq, Bitboard occupied);
+
+struct Move
+{
+    Square from;
+    Square to;
+    int piece;
+};
+
+// Helper functions
 Position createStartingPosition(){
     Position pos{};
     // White pieces
@@ -148,8 +172,7 @@ void printBoard(const Position& pos){
         cout << "  a b c d e f g h\n";
 }
 
-void printBitboard(Bitboard b)
-{
+void printBitboard(Bitboard b){
     for(int rank = 7; rank >= 0; rank--)
     {
         cout << rank + 1 << " ";
@@ -166,33 +189,157 @@ void printBitboard(Bitboard b)
     cout << "  a b c d e f g h\n\n";
 }
 
+// Returns the index (0-63) of the least significant 1-bit, then clears it.
+inline int popLeastSignificantBit(Bitboard& bb) {
+    if (bb == 0) return -1;
+    int index = __builtin_ctzll(bb); 
+    bb &= bb - 1; // Clears the lowest bit
+    return index;
+}
 
+vector<Move> generateMoves(const Position& pos, Color side) {
+    vector<Move> moveList;
+    
+    Bitboard friendlyPieces = (side == WHITE) ? pos.whitePieces : pos.blackPieces;
+    Bitboard enemyPieces     = (side == WHITE) ? pos.blackPieces : pos.whitePieces;
+    Bitboard notFriendly    = ~friendlyPieces;
+
+    // --- 1. KNIGHTS ---
+    Bitboard knights = (side == WHITE) ? pos.whiteKnights : pos.blackKnights;
+    while (knights) {
+        Square from = static_cast<Square>(popLeastSignificantBit(knights));
+        Bitboard targets = knightAttacks(1ULL << from) & notFriendly;
+        while (targets) {
+            Square to = static_cast<Square>(popLeastSignificantBit(targets));
+            moveList.push_back({from, to, KNIGHT});
+        }
+    }
+
+    // --- 2. BISHOPS / ROOKS / QUEENS ---
+    auto generateSliding = [&](Bitboard pieces, PieceType type, Bitboard (*attackFunc)(Square, Bitboard)) {
+        while (pieces) {
+            Square from = static_cast<Square>(popLeastSignificantBit(pieces));
+            Bitboard targets = attackFunc(from, pos.occupied) & notFriendly;
+            while (targets) {
+                Square to = static_cast<Square>(popLeastSignificantBit(targets));
+                moveList.push_back({from, to, type});
+            }
+        }
+    };
+
+    generateSliding((side == WHITE) ? pos.whiteBishops : pos.blackBishops, BISHOP, bishopAttacks);
+    generateSliding((side == WHITE) ? pos.whiteRooks   : pos.blackRooks,   ROOK,   rookAttacks);
+    generateSliding((side == WHITE) ? pos.whiteQueens  : pos.blackQueens,  QUEEN,  queenAttacks);
+
+    // --- 3. KING ---
+    Bitboard king = (side == WHITE) ? pos.whiteKing : pos.blackKing;
+    if (king) {
+        Square from = static_cast<Square>(popLeastSignificantBit(king));
+        Bitboard targets = kingAttacks(1ULL << from) & notFriendly;
+        while (targets) {
+            Square to = static_cast<Square>(popLeastSignificantBit(targets));
+            moveList.push_back({from, to, KING});
+        }
+    }
+
+    // --- 4. PAWNS ---
+    Bitboard pawns = (side == WHITE) ? pos.whitePawns : pos.blackPawns;
+    while (pawns) {
+        Square from = static_cast<Square>(popLeastSignificantBit(pawns));
+        
+        // Quiet Pushes
+        if (side == WHITE) {
+            Square to = static_cast<Square>(from + 8);
+            if (!(pos.occupied & (1ULL << to))) {
+                moveList.push_back({from, to, PAWN});
+                // Double Push from rank 2
+                if (from >= A2 && from <= H2 && !(pos.occupied & (1ULL << (from + 16)))) {
+                    moveList.push_back({from, static_cast<Square>(from + 16), PAWN});
+                }
+            }
+            // Capture targets
+            Bitboard targets = whitePawnAttacks(1ULL << from) & enemyPieces;
+            while (targets) {
+                Square to = static_cast<Square>(popLeastSignificantBit(targets));
+                moveList.push_back({from, to, PAWN});
+            }
+        } else { // Black pawns
+            Square to = static_cast<Square>(from - 8);
+            if (!(pos.occupied & (1ULL << to))) {
+                moveList.push_back({from, to, PAWN});
+                // Double Push from rank 7
+                if (from >= A7 && from <= H7 && !(pos.occupied & (1ULL << (from - 16)))) {
+                    moveList.push_back({from, static_cast<Square>(from - 16), PAWN});
+                }
+            }
+            // Capture targets
+            Bitboard targets = blackPawnAttacks(1ULL << from) & enemyPieces;
+            while (targets) {
+                Square to = static_cast<Square>(popLeastSignificantBit(targets));
+                moveList.push_back({from, to, PAWN});
+            }
+        }
+    }
+
+    return moveList;
+}
+
+void makeMove(Position& pos, Move move, Color side) {
+    Bitboard fromBB = 1ULL << move.from;
+    Bitboard toBB   = 1ULL << move.to;
+
+    // 1. Clear the captured piece if it lands on an opponent's square
+    if (side == WHITE) {
+        pos.blackPawns   &= ~toBB;
+        pos.blackKnights &= ~toBB;
+        pos.blackBishops &= ~toBB;
+        pos.blackRooks   &= ~toBB;
+        pos.blackQueens  &= ~toBB;
+        pos.blackKing    &= ~toBB;
+    } else {
+        pos.whitePawns   &= ~toBB;
+        pos.whiteKnights &= ~toBB;
+        pos.whiteBishops &= ~toBB;
+        pos.whiteRooks   &= ~toBB;
+        pos.whiteQueens  &= ~toBB;
+        pos.whiteKing    &= ~toBB;
+    }
+
+    // 2. Move your own piece
+    Bitboard* pieceBB = nullptr;
+    if (side == WHITE) {
+        if (move.piece == PAWN)   pieceBB = &pos.whitePawns;
+        if (move.piece == KNIGHT) pieceBB = &pos.whiteKnights;
+        if (move.piece == BISHOP) pieceBB = &pos.whiteBishops;
+        if (move.piece == ROOK)   pieceBB = &pos.whiteRooks;
+        if (move.piece == QUEEN)  pieceBB = &pos.whiteQueens;
+        if (move.piece == KING)   pieceBB = &pos.whiteKing;
+    } else {
+        if (move.piece == PAWN)   pieceBB = &pos.blackPawns;
+        if (move.piece == KNIGHT) pieceBB = &pos.blackKnights;
+        if (move.piece == BISHOP) pieceBB = &pos.blackBishops;
+        if (move.piece == ROOK)   pieceBB = &pos.blackRooks;
+        if (move.piece == QUEEN)  pieceBB = &pos.blackQueens;
+        if (move.piece == KING)   pieceBB = &pos.blackKing;
+    }
+
+    if (pieceBB) {
+        *pieceBB &= ~fromBB; // Remove from original spot
+        *pieceBB |= toBB;    // Add to new spot
+    }
+
+    // 3. Update all composite tracking layers
+    updateOccupancy(pos);
+}
+
+// Moves + attacks
 void moveWhitePawn(Position& pos, Square from, Square to){
     pos.whitePawns &= ~(1ULL << from); // remove it from the previous position
     pos.whitePawns |= (1ULL << to); 
     updateOccupancy(pos);
 }
 
-// void generateKnightMoves(Position&pos){
-//     Bitboard noA  = knights & ~FILE_A;
-//     Bitboard noAB = knights & ~(FILE_A | FILE_B);
-//     Bitboard noH  = knights & ~FILE_H;
-//     Bitboard noGH = knights & ~(FILE_G | FILE_H);
-
-//     moves |= noH  << 17;
-//     moves |= noA  << 15;
-//     moves |= noGH << 10;
-//     moves |= noAB << 6;
-
-//     moves |= noH  >> 15;
-//     moves |= noA  >> 17;
-//     moves |= noGH >> 6;
-//     moves |= noAB >> 10;
-// }
-
-
-Bitboard knightAttacks(Bitboard knights)
-{
+Bitboard knightAttacks(Bitboard knights){
     Bitboard moves = 0;
 
     Bitboard noA  = knights & ~FILE_A;
@@ -260,7 +407,6 @@ Bitboard blackPawnAttacks(Bitboard pawns) {
     attacks |= noH >> 7; // Diagonal Down-Right
     return attacks;
 }
-
 
 // Sliding pieces
 Bitboard bishopAttacks(Square sq, Bitboard occupied) {
@@ -362,17 +508,44 @@ int main(){
     // Bitboard attacks = bishopAttacks(bishopSquare, pos.occupied);
     // printBitboard(attacks);
 
-    // 1. Test Rook Attacks from D4
-    Square rookSquare = D4;
-    cout << "Rook on D4 attacks:\n";
-    Bitboard rAttacks = rookAttacks(rookSquare, pos.occupied);
-    printBitboard(rAttacks);
+    // // 1. Test Rook Attacks from D4
+    // Square rookSquare = D4;
+    // cout << "Rook on D4 attacks:\n";
+    // Bitboard rAttacks = rookAttacks(rookSquare, pos.occupied);
+    // printBitboard(rAttacks);
 
-    // 2. Test Queen Attacks from D4
-    Square queenSquare = D4;
-    cout << "Queen on D4 attacks:\n";
-    Bitboard qAttacks = queenAttacks(queenSquare, pos.occupied);
-    printBitboard(qAttacks);
+    // // 2. Test Queen Attacks from D4
+    // Square queenSquare = D4;
+    // cout << "Queen on D4 attacks:\n";
+    // Bitboard qAttacks = queenAttacks(queenSquare, pos.occupied);
+    // printBitboard(qAttacks);
+
+    cout << "--- Starting Position ---\n";
+    printBoard(pos);
+
+    // 1. Generate all initial moves for White
+    vector<Move> whiteMoves = generateMoves(pos, WHITE);
+    cout << "Total legal/pseudo-legal moves for White: " << whiteMoves.size() << "\n\n";
+
+    // 2. Find and execute a specific move (E2 to E4)
+    Move e2e4;
+    bool found = false;
+    for (const auto& m : whiteMoves) {
+        if (m.from == E2 && m.to == E4) {
+            e2e4 = m;
+            found = true;
+            break;
+        }
+    }
+
+    if (found) {
+        cout << "Executing E2 -> E4...\n";
+        makeMove(pos, e2e4, WHITE);
+        printBoard(pos);
+    }
+    // 3. See what Black can do next
+    vector<Move> blackMoves = generateMoves(pos, BLACK);
+    cout << "Total legal/pseudo-legal moves for Black: " << blackMoves.size() << "\n";
 
     return 0;
 }
