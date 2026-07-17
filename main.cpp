@@ -2,8 +2,15 @@
 #include <cstdint>
 using namespace std;
 
+
 using Bitboard = uint64_t;
-    
+
+//masking
+const Bitboard FILE_A = 0x0101010101010101ULL;
+const Bitboard FILE_B = 0x0202020202020202ULL;
+const Bitboard FILE_G = 0x4040404040404040ULL;
+const Bitboard FILE_H = 0x8080808080808080ULL;
+
     struct Position
     {
         Bitboard whitePawns;
@@ -141,17 +148,89 @@ void printBoard(const Position& pos){
         cout << "  a b c d e f g h\n";
 }
 
+void printBitboard(Bitboard b)
+{
+    for(int rank = 7; rank >= 0; rank--)
+    {
+        for(int file = 0; file < 8; file++)
+        {
+            int sq = rank * 8 + file;
+            if(b & (1ULL << sq))
+                cout << "1 ";
+            else
+                cout << ". ";
+        }
+        cout << '\n';
+    }
+    cout << "  a b c d e f g h\n\n";
+}
+
+
 void moveWhitePawn(Position& pos, Square from, Square to){
-    pos.whitePawns &= ~(1ULL << from);
-    pos.whitePawns |= (1ULL << to);
+    pos.whitePawns &= ~(1ULL << from); // remove it from the previous position
+    pos.whitePawns |= (1ULL << to); 
     updateOccupancy(pos);
 }
 
+// void generateKnightMoves(Position&pos){
+//     Bitboard noA  = knights & ~FILE_A;
+//     Bitboard noAB = knights & ~(FILE_A | FILE_B);
+//     Bitboard noH  = knights & ~FILE_H;
+//     Bitboard noGH = knights & ~(FILE_G | FILE_H);
+
+//     moves |= noH  << 17;
+//     moves |= noA  << 15;
+//     moves |= noGH << 10;
+//     moves |= noAB << 6;
+
+//     moves |= noH  >> 15;
+//     moves |= noA  >> 17;
+//     moves |= noGH >> 6;
+//     moves |= noAB >> 10;
+// }
+
+
+Bitboard knightAttacks(Bitboard knights)
+{
+    Bitboard moves = 0;
+
+    Bitboard noA  = knights & ~FILE_A;
+    Bitboard noAB = knights & ~(FILE_A | FILE_B);
+    Bitboard noH  = knights & ~FILE_H;
+    Bitboard noGH = knights & ~(FILE_G | FILE_H);
+
+
+    // Move upwards
+    moves |= noH  << 17;   // +2 rank +1 file
+    moves |= noA  << 15;   // +2 rank -1 file
+    moves |= noGH << 10;   // +1 rank +2 file
+    moves |= noAB << 6;    // +1 rank -2 file
+
+
+    // Move downwards
+    moves |= noH  >> 15;   // -2 rank +1 file
+    moves |= noA  >> 17;   // -2 rank -1 file
+    moves |= noGH >> 6;    // -1 rank +2 file
+    moves |= noAB >> 10;   // -1 rank -2 file
+
+
+    return moves;
+}
+
+
 int main(){
     Position pos = createStartingPosition();
-    printBoard(pos);
-    cout << "PRINTING AFTER MOVING A PAWN\n";
-    moveWhitePawn(pos, E2, E4);
-    printBoard(pos);
+    // printBoard(pos);
+    // cout << "PRINTING AFTER MOVING A PAWN\n";
+    // moveWhitePawn(pos, E2, E4);
+    // printBoard(pos);
+    // White knights starting squares:
+    // B1 = 1
+    // G1 = 6
+
+    Bitboard whiteKnights = (1ULL << 1) |(1ULL << 6);
+    cout << "Knight attacks:\n";
+    Bitboard attacks = knightAttacks(whiteKnights);
+    printBitboard(attacks);
     return 0;
 }
