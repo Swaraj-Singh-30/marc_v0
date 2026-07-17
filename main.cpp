@@ -422,30 +422,21 @@ void undoMove(Position& pos, const Move& move, Color side) {
     updateOccupancy(pos);
 }
 
-
-bool isSquareAttacked(Square sq, Color attackerColor, const Position& pos) {
+bool isSquareAttacked(const Position& pos, Square sq, Color attackerColor) {
     Bitboard target = 1ULL << sq;
-
     if (attackerColor == WHITE) {
-        // Attacked by white pawns? (Check from perspective of target looking back)
         if (blackPawnAttacks(target) & pos.whitePawns) return true;
-        // Attacked by white knights?
         if (knightAttacks(target) & pos.whiteKnights) return true;
-        // Attacked by sliding pieces?
+        if (kingAttacks(target) & pos.whiteKing) return true;
         if (bishopAttacks(sq, pos.occupied) & (pos.whiteBishops | pos.whiteQueens)) return true;
         if (rookAttacks(sq, pos.occupied) & (pos.whiteRooks | pos.whiteQueens)) return true;
-        // Attacked by king?
-        if (kingAttacks(target) & pos.whiteKing) return true;
-    } else {
-        // Attacked by black pawns?
+    } 
+    else {
         if (whitePawnAttacks(target) & pos.blackPawns) return true;
-        // Attacked by black knights?
         if (knightAttacks(target) & pos.blackKnights) return true;
-        // Attacked by sliding pieces?
+        if (kingAttacks(target) & pos.blackKing) return true;
         if (bishopAttacks(sq, pos.occupied) & (pos.blackBishops | pos.blackQueens)) return true;
         if (rookAttacks(sq, pos.occupied) & (pos.blackRooks | pos.blackQueens)) return true;
-        // Attacked by king?
-        if (kingAttacks(target) & pos.blackKing) return true;
     }
     return false;
 }
@@ -454,21 +445,19 @@ bool isSquareAttacked(Square sq, Color attackerColor, const Position& pos) {
 vector<Move> getLegalMoves(Position& pos, Color side) {
     vector<Move> pseudoMoves = generateMoves(pos, side);
     vector<Move> legalMoves;
+    Color enemyColor = (side == WHITE) ? BLACK : WHITE;
 
     for (Move& m : pseudoMoves) {
         makeMove(pos, m, side);
 
-        // Find where our king is after making the move
         Bitboard kingBB = (side == WHITE) ? pos.whiteKing : pos.blackKing;
-        Square kingSq = static_cast<Square>(__builtin_ctzll(kingBB));
-
-        // If the king is NOT attacked after the move, it's completely legal!
-        Color enemyColor = (side == WHITE) ? BLACK : WHITE;
-        if (!isSquareAttacked(kingSq, enemyColor, pos)) {
-            legalMoves.push_back(m);
+        if (kingBB) {
+            Square kingSq = static_cast<Square>(__builtin_ctzll(kingBB));
+            if (!isSquareAttacked(pos, kingSq, enemyColor)) {
+                legalMoves.push_back(m);
+            }
         }
-
-        undoMove(pos, m, side); // Revert the board perfectly
+        undoMove(pos, m, side);
     }
     return legalMoves;
 }
