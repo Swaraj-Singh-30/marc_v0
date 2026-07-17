@@ -475,7 +475,7 @@ void undoMove(Position& pos, const Move& move, Color side) {
     updateOccupancy(pos);
 }
 
-bool isSquareAttacked(const Position& pos, Square sq, Color attackerColor) {
+bool isSquareAttacked(const Position& pos, Square sq, Color attackerColor){
     Bitboard target = 1ULL << sq;
     if (attackerColor == WHITE) {
         if (blackPawnAttacks(target) & pos.whitePawns) return true;
@@ -513,6 +513,24 @@ vector<Move> getLegalMoves(Position& pos, Color side) {
         undoMove(pos, m, side);
     }
     return legalMoves;
+}
+
+long long perft(int depth, Position& pos, Color side) {
+    // Base case: if we hit the bottom of the tree, this position counts as 1 leaf node
+    if (depth == 0) {
+        return 1ULL;
+    }
+
+    long long nodes = 0;
+    vector<Move> legalMoves = getLegalMoves(pos, side);
+    Color nextSide = (side == WHITE) ? BLACK : WHITE;
+
+    for (Move& m : legalMoves) {
+        makeMove(pos, m, side);
+        nodes += perft(depth - 1, pos, nextSide);
+        undoMove(pos, m, side);
+    }
+    return nodes;
 }
 
 // Moves + attacks
@@ -725,18 +743,26 @@ int main(){
     // vector<Move> blackMoves = generateMoves(pos, BLACK);
     // cout << "Total legal/pseudo-legal moves for Black: " << blackMoves.size() << "\n";
 
+    // string customFen = "4r1k1/8/8/8/8/8/8/4K3 w - - 0 1";
+
+    // cout << "Parsing FEN...\n";
+    // Color sideToMove = parseFEN(pos, customFen);
+    
+    // printBoard(pos);
+    // cout << "Side to move: " << (sideToMove == WHITE ? "White" : "Black") << "\n\n";
+
+    // // Test your legal move generator on this FEN
+    // vector<Move> legalMoves = getLegalMoves(pos, sideToMove);
+    // cout << "Total fully legal moves from this position: " << legalMoves.size() << "\n";
+
 
     string customFen = "4r1k1/8/8/8/8/8/8/4K3 w - - 0 1";
-
-    cout << "Parsing FEN...\n";
     Color sideToMove = parseFEN(pos, customFen);
     
-    printBoard(pos);
-    cout << "Side to move: " << (sideToMove == WHITE ? "White" : "Black") << "\n\n";
-
-    // Test your legal move generator on this FEN
-    vector<Move> legalMoves = getLegalMoves(pos, sideToMove);
-    cout << "Total fully legal moves from this position: " << legalMoves.size() << "\n";
+    cout << "Running Perft Tests...\n";
+    cout << "Depth 1 nodes: " << perft(1, pos, sideToMove) << " (Expected: 4)\n";
+    cout << "Depth 2 nodes: " << perft(2, pos, sideToMove) << "\n";
+    cout << "Depth 3 nodes: " << perft(3, pos, sideToMove) << "\n";
 
     return 0;
 }
