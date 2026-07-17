@@ -1,0 +1,7 @@
+build it once 
+
+cmake -B build
+cmake --build build
+
+run 
+./build/marc
